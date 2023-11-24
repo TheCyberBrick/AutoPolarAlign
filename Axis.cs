@@ -15,6 +15,8 @@ namespace AutoPolarAlign
             }
         }
 
+        public double Limit { get; set; } = double.MaxValue;
+
         private double _backlashCompensation;
         public double BacklashCompensation
         {
@@ -54,9 +56,40 @@ namespace AutoPolarAlign
             return amount;
         }
 
-        public void Move(double amount)
+        public bool Move(double amount, out double movedAmount)
         {
+            movedAmount = 0;
+
+            if (amount > 0)
+            {
+                if (Position >= Limit - double.Epsilon)
+                {
+                    return false;
+                }
+                else if (Position + amount >= Limit)
+                {
+                    movedAmount = Limit - Position;
+                    Position = Limit;
+                    return true;
+                }
+            }
+            else
+            {
+                if (Position <= -Limit + double.Epsilon)
+                {
+                    return false;
+                }
+                else if (Position + amount <= -Limit)
+                {
+                    movedAmount = -Limit - Position;
+                    Position = -Limit;
+                    return true;
+                }
+            }
+
+            movedAmount = amount;
             Position += amount;
+            return true;
         }
 
         private void MoveBacklash(double amount)

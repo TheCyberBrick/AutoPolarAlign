@@ -20,9 +20,11 @@ namespace AutoPolarAlign
             this.solver = solver;
             this.settings = settings;
 
+            Altitude.Limit = settings.AltitudeLimit;
             Altitude.BacklashCompensation = settings.AltitudeBacklash;
             Altitude.CalibrationDistance = settings.AltitudeCalibrationDistance;
 
+            Azimuth.Limit = settings.AzimuthLimit;
             Azimuth.BacklashCompensation = settings.AzimuthBacklash;
             Azimuth.CalibrationDistance = settings.AzimuthCalibrationDistance;
         }
@@ -223,16 +225,28 @@ namespace AutoPolarAlign
 
         private void MoveAxisWithCompensation(Axis axis, double amount, double backlashCompensationPercent = 1.0)
         {
-            double estimate = axis.EstimateCompensatedMove(amount, backlashCompensationPercent);
-            if (axis == Altitude)
+            if (axis.Move(axis.EstimateCompensatedMove(amount, backlashCompensationPercent), out amount))
             {
-                mount.MoveAltitude(estimate);
+                if (axis == Altitude)
+                {
+                    mount.MoveAltitude(amount);
+                }
+                else if (axis == Azimuth)
+                {
+                    mount.MoveAzimuth(amount);
+                }
             }
-            else if (axis == Azimuth)
+            else
             {
-                mount.MoveAzimuth(estimate);
+                if (axis == Altitude)
+                {
+                    throw new Exception("Altitude limit reached");
+                }
+                else if (axis == Azimuth)
+                {
+                    throw new Exception("Azimuth limit reached");
+                }
             }
-            axis.Move(estimate);
         }
 
         public void AlignOnce(double aggressiveness = 1.0, double backlashCompensationPercent = 1.0)
