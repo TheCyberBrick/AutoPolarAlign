@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.28307.1622
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{23D7E0B1-E053-4742-852B-18C825AB08A5}") = "AutoPolarAlign", "AutoPolarAlign.csproj", "{CECCA603-3720-439D-8370-6C2B052A5E60}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CECCA603-3720-439D-8370-6C2B052A5E60}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CECCA603-3720-439D-8370-6C2B052A5E60}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CECCA603-3720-439D-8370-6C2B052A5E60}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CECCA603-3720-439D-8370-6C2B052A5E60}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {1283D5C3-C4F7-42CF-9338-57FC41AF999B}
+	EndGlobalSection
+EndGlobal
