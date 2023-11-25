@@ -39,6 +39,8 @@ namespace AutoPolarAlign
 
         public bool AutoLoadDark { get; set; } = true;
 
+        public bool AutoLoadSettings { get; set; } = true;
+
         public string ProcessName { get; set; } = "iOptron iPolar";
 
         public string ApplicationPath { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "iOptron iPolar", "iOptron iPolar.exe");
@@ -101,43 +103,49 @@ namespace AutoPolarAlign
                 return false;
             }
 
-            var settingsWindow = FindAndCheckWindow(ProcessName, "Settings", Timeout);
-
-            if (CheckTimeout())
+            if (AutoLoadDark || AutoLoadSettings)
             {
-                return false;
-            }
-
-            if (FindFloatElement(settingsWindow, "maskedTextBoxX", out float centerX) && centerX > float.Epsilon)
-            {
-                settings.CenterX = centerX;
-                settings.CenterXFound = true;
-            }
-
-            if (FindFloatElement(settingsWindow, "maskedTextBoxY", out float centerY) && centerY > float.Epsilon)
-            {
-                settings.CenterY = centerY;
-                settings.CenterYFound = true;
-            }
-
-            if (AutoLoadDark)
-            {
-                if (!FindAndClickButton(settingsWindow, "buttonLoadLastDarkFrame", Timeout))
-                {
-                    return false;
-                }
+                var settingsWindow = FindAndCheckWindow(ProcessName, "Settings", Timeout);
 
                 if (CheckTimeout())
                 {
                     return false;
                 }
-            }
 
-            SendMessageTimeoutA(new IntPtr(settingsWindow.Current.NativeWindowHandle), WM_CLOSE, IntPtr.Zero, IntPtr.Zero, SMTO_NORMAL | SMTO_ABORTIFHUNG, (int)Math.Ceiling(Timeout * 1000), out var _);
+                if (AutoLoadSettings)
+                {
+                    if (FindFloatElement(settingsWindow, "maskedTextBoxX", out float centerX) && centerX > float.Epsilon)
+                    {
+                        settings.CenterX = centerX;
+                        settings.CenterXFound = true;
+                    }
 
-            if (CheckTimeout())
-            {
-                return false;
+                    if (FindFloatElement(settingsWindow, "maskedTextBoxY", out float centerY) && centerY > float.Epsilon)
+                    {
+                        settings.CenterY = centerY;
+                        settings.CenterYFound = true;
+                    }
+                }
+
+                if (AutoLoadDark)
+                {
+                    if (!FindAndClickButton(settingsWindow, "buttonLoadLastDarkFrame", Timeout))
+                    {
+                        return false;
+                    }
+
+                    if (CheckTimeout())
+                    {
+                        return false;
+                    }
+                }
+
+                SendMessageTimeoutA(new IntPtr(settingsWindow.Current.NativeWindowHandle), WM_CLOSE, IntPtr.Zero, IntPtr.Zero, SMTO_NORMAL | SMTO_ABORTIFHUNG, (int)Math.Ceiling(Timeout * 1000), out var _);
+
+                if (CheckTimeout())
+                {
+                    return false;
+                }
             }
 
             // blocking: true would be better, but seems to hang once iPolar has connected

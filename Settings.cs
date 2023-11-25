@@ -10,6 +10,8 @@
         public double AltitudeLimit = 300;
         public int SamplesPerCalibration = 1;
         public int SamplesPerMeasurement = 3;
-        public int MaxIterations = 10;
+        public int MaxAlignmentIterations = 10;
+        public double AlignmentThreshold = 1;
+        public bool AcceptBestEffort = false;
     }
 }

@@ -13,6 +13,7 @@ namespace AutoPolarAlign
 
             List<double> results = new List<double>();
             List<double> totals = new List<double>();
+            List<int> iterations = new List<int>();
 
             for (int i = 0; i < numRuns; ++i)
             {
@@ -54,48 +55,60 @@ namespace AutoPolarAlign
                     initialAltBacklash * backlashScale, -initialAzBacklash * backlashScale
                     );
 
-                var aligner = new AutoPolarAlignment(simulator, simulator, new Settings()
+                var settings = new Settings()
                 {
                     AltitudeBacklash = altBacklashCompensation * backlashScale,
                     AltitudeCalibrationDistance = altCalibrationDistance,
                     AzimuthBacklash = azBacklashCompensation * backlashScale,
                     AzimuthCalibrationDistance = azCalibrationDistance
-                });
+                };
+
+                var aligner = new AutoPolarAlignment(simulator, simulator, settings);
 
                 try
                 {
-                    aligner.Connect();
+                    simulator.Connect();
 
                     aligner.Calibrate();
 
                     double totalOffsets = 0.0;
 
-                    int numSteps = 6;
-                    for (int j = 0; j < numSteps; ++j)
+                    int j = 0;
+                    for (; j < settings.MaxAlignmentIterations; ++j)
                     {
-                        aligner.AlignOnce(aggressiveness, compensationScale);
+                        if (!aligner.AlignOnce(settings.AlignmentThreshold, aggressiveness, compensationScale))
+                        {
+                            break;
+                        }
                         totalOffsets += simulator.TrueAlignmentOffset.Length;
                     }
 
                     results.Add(simulator.TrueAlignmentOffset.Length);
                     totals.Add(totalOffsets);
+                    iterations.Add(j);
                 }
                 finally
                 {
-                    aligner.Dispose();
+                    simulator.Dispose();
                 }
             }
 
+            Console.WriteLine("┌────────────────────────────────────────────┐");
+            Console.WriteLine("│  Run      Offset        Total   Iterations │");
+            Console.WriteLine("├────────────────────────────────────────────┤");
             double resultsSum = 0;
             double totalsSum = 0;
+            int totalIterations = 0;
             for (int i = 0; i < results.Count; ++i)
             {
-                Console.WriteLine(results[i] + " " + totals[i]);
+                Console.WriteLine(string.Format("│ {0,4:###0} {1,11:#######0.00}  {2,11:#######0.00}  {3,11:#######0} │", i, results[i], totals[i], iterations[i]));
                 resultsSum += results[i];
                 totalsSum += totals[i];
+                totalIterations += iterations[i];
             }
-
-            Console.WriteLine("Avg.: " + (resultsSum / results.Count) + " " + (totalsSum / results.Count));
+            Console.WriteLine("├────────────────────────────────────────────┤");
+            Console.WriteLine(string.Format("│ Avg. {0,11:#######0.00}  {1,11:#######0.00}  {2,11:#######0.00} │", resultsSum / results.Count, totalsSum / results.Count, totalIterations / (float)results.Count));
+            Console.WriteLine("└────────────────────────────────────────────┘");
         }
     }
 }

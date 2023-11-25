@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace AutoPolarAlign
 {
-    public class AutoPolarAlignment : IDisposable
+    public class AutoPolarAlignment
     {
         private readonly IPolarAlignmentMount mount;
 
@@ -29,40 +29,29 @@ namespace AutoPolarAlign
             Azimuth.CalibrationDistance = settings.AzimuthCalibrationDistance;
         }
 
-        public void Connect()
-        {
-            try
-            {
-                mount.Connect();
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("Failed to connect to mount", ex);
-            }
-
-            try
-            {
-                solver.Connect();
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("Failed to connect to solver", ex);
-            }
-        }
-
-        public void Run()
+        public bool Run()
         {
             if (!Calibrate())
             {
                 throw new Exception("Calibration failed");
             }
 
-            for (int i = 0; i < settings.MaxIterations; ++i)
+            for (int i = 0; i < settings.MaxAlignmentIterations; ++i)
             {
-                // TODO Check threshold
-
-                AlignOnce();
+                if (!AlignOnce(settings.AlignmentThreshold))
+                {
+                    return true;
+                }
             }
+
+            if (settings.AcceptBestEffort)
+            {
+                return true;
+            }
+
+            var correction = EstimateCorrection();
+
+            return correction.Length < settings.AlignmentThreshold;
         }
 
         public bool Calibrate()
@@ -249,7 +238,7 @@ namespace AutoPolarAlign
             }
         }
 
-        public void AlignOnce(double aggressiveness = 1.0, double backlashCompensationPercent = 1.0)
+        private Vec2 EstimateCorrection()
         {
             Vec2 offset = new Vec2();
             for (int i = 0; i < settings.SamplesPerMeasurement; ++i)
@@ -259,22 +248,22 @@ namespace AutoPolarAlign
             }
             offset /= settings.SamplesPerMeasurement;
 
-            var correction = AlignmentOffsetToAltAzOffset(-offset) * aggressiveness;
-
-            MoveAxisWithCompensation(Altitude, correction.Altitude, backlashCompensationPercent);
-            MoveAxisWithCompensation(Azimuth, correction.Azimuth, backlashCompensationPercent);
+            return AlignmentOffsetToAltAzOffset(-offset);
         }
 
-        public void Dispose()
+        public bool AlignOnce(double correctionThreshold, double aggressiveness = 1.0, double backlashCompensationPercent = 1.0)
         {
-            try
+            var correction = EstimateCorrection();
+
+            if (correction.Length < correctionThreshold)
             {
-                mount.Dispose();
+                return false;
             }
-            finally
-            {
-                solver.Dispose();
-            }
+
+            MoveAxisWithCompensation(Altitude, correction.Altitude * aggressiveness, backlashCompensationPercent);
+            MoveAxisWithCompensation(Azimuth, correction.Azimuth * aggressiveness, backlashCompensationPercent);
+
+            return true;
         }
     }
 }
