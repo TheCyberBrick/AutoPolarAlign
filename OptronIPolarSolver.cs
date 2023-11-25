@@ -24,6 +24,13 @@ namespace AutoPolarAlign
 
         public float CenterY { get; set; } = 640.0f;
 
+        public bool StartIPolar { get; set; } = true;
+
+        public bool StopIPolar { get; set; } = true;
+
+
+        public OptronIPolarSetup Setup { get; } = new OptronIPolarSetup();
+
 
         private DirectoryInfo dir = null;
 
@@ -31,6 +38,24 @@ namespace AutoPolarAlign
 
         public void Connect()
         {
+            if (StartIPolar)
+            {
+                if (!Setup.Run(out var settings))
+                {
+                    throw new Exception("Could not set up iPolar application");
+                }
+
+                if (settings.CenterXFound)
+                {
+                    CenterX = settings.CenterX;
+                }
+
+                if (settings.CenterYFound)
+                {
+                    CenterY = settings.CenterY;
+                }
+            }
+
             dir = new DirectoryInfo(LogPath);
 
             CheckDirectory();
@@ -59,10 +84,15 @@ namespace AutoPolarAlign
 
         public void Disconnect()
         {
+            if (StopIPolar)
+            {
+                Setup.StopIPolar();
+            }
         }
 
         public void Dispose()
         {
+            Disconnect();
         }
 
         public void Solve()
