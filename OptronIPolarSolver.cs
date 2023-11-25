@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Management.Automation;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace AutoPolarAlign
 {
@@ -46,7 +47,11 @@ namespace AutoPolarAlign
 
         private void CheckDirectory()
         {
-            if (dir == null || !dir.Exists)
+            if (dir == null)
+            {
+                throw new Exception("iPolar not connected");
+            }
+            else if (!dir.Exists)
             {
                 throw new Exception("iPolar log directory " + LogPath + " not found");
             }
@@ -62,22 +67,30 @@ namespace AutoPolarAlign
 
         public void Solve()
         {
-            while (true)
+            CheckDirectory();
+
+            using (var watcher = new FileSystemWatcher(LogPath))
+            using (var waitHandle = new AutoResetEvent(false))
             {
-                CheckDirectory();
+                watcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size;
 
-                var logFile = FindLatestLogFile();
-                var log = ReadLastLine(logFile);
+                watcher.Changed += (s, e) => waitHandle.Set();
+                watcher.Created += (s, e) => waitHandle.Set();
+                watcher.EnableRaisingEvents = true;
 
-                if (TryParseLog(log))
+                while (true)
                 {
-                    break;
-                }
+                    CheckDirectory();
 
-                using (var watcher = new FileSystemWatcher(LogPath, logFile.Name))
-                {
-                    watcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size;
-                    watcher.WaitForChanged(WatcherChangeTypes.Changed, MaxLogAge);
+                    var logFile = FindLatestLogFile();
+                    var log = ReadLastLine(logFile);
+
+                    if (TryParseLog(log))
+                    {
+                        break;
+                    }
+
+                    waitHandle.WaitOne(TimeSpan.FromSeconds(0.5 * MaxLogAge));
                 }
             }
         }

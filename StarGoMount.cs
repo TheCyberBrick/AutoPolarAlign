@@ -241,7 +241,6 @@ namespace AutoPolarAlign
 
         public void StopAzimuth()
         {
-            Console.WriteLine("STOP");
             SendCommand(":X0AAUX1ST#");
         }
 
