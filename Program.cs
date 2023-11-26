@@ -5,11 +5,8 @@ class MountInitializer
 {
     public static void Main(string[] args)
     {
-        Simulation.Run();
-        Console.ReadLine();
-
-        //var settings = new Settings();
-        //AutoPolarAlign(settings);
+        var settings = new Settings();
+        AutoPolarAlign(settings);
     }
 
     private static void AutoPolarAlign(Settings settings)
