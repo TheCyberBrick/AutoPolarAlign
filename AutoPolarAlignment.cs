@@ -36,9 +36,15 @@ namespace AutoPolarAlign
                 throw new Exception("Calibration failed");
             }
 
+            return Align();
+        }
+
+        public bool Align()
+        {
             for (int i = 0; i < settings.MaxAlignmentIterations; ++i)
             {
-                if (!AlignOnce(settings.AlignmentThreshold))
+                double aggressiveness = settings.MaxAlignmentIterations > 1 ? (settings.EndAggressiveness + (settings.StartAggressiveness - settings.EndAggressiveness) / (settings.MaxAlignmentIterations - 1) * (settings.MaxAlignmentIterations - 1 - i)) : settings.EndAggressiveness;
+                if (!AlignOnce(settings.AlignmentThreshold, aggressiveness))
                 {
                     return true;
                 }
@@ -251,7 +257,7 @@ namespace AutoPolarAlign
             return AlignmentOffsetToAltAzOffset(-offset);
         }
 
-        public bool AlignOnce(double correctionThreshold, double aggressiveness = 1.0, double backlashCompensationPercent = 1.0)
+        public virtual bool AlignOnce(double correctionThreshold, double aggressiveness = 1.0, double backlashCompensationPercent = 1.0)
         {
             var correction = EstimateCorrection();
 

@@ -5,9 +5,49 @@ namespace AutoPolarAlign
 {
     public class Simulation
     {
+        private class Aligner : AutoPolarAlignment
+        {
+            public double TotalOffsets { get; set; }
+
+            public Vec2 CurrentOffset { get; set; }
+
+            public int Iterations { get; set; }
+
+            public double CompensationScale { get; set; } = 1.0;
+
+            private readonly Simulator simulator;
+
+            public Aligner(Simulator simulator, Settings settings) : base(simulator, simulator, settings)
+            {
+                this.simulator = simulator;
+            }
+
+            public void Reset()
+            {
+                TotalOffsets = 0;
+                Iterations = 0;
+                CurrentOffset = new Vec2();
+            }
+
+            public override bool AlignOnce(double correctionThreshold, double aggressiveness = 1, double backlashCompensationPercent = 1)
+            {
+                bool result = base.AlignOnce(correctionThreshold, aggressiveness, backlashCompensationPercent * CompensationScale);
+
+                TotalOffsets += simulator.TrueAlignmentOffset.Length;
+                CurrentOffset = simulator.TrueAlignmentOffset;
+
+                if (result)
+                {
+                    ++Iterations;
+                }
+
+                return result;
+            }
+        }
+
         public static void Run()
         {
-            int numRuns = 10;
+            int numRuns = 20;
 
             var rng = new Random();
 
@@ -28,7 +68,10 @@ namespace AutoPolarAlign
                 float backlashScale = 1.0f;
                 float compensationScale = 1.0f;
 
-                float aggressiveness = 1.0f;
+                float startAggressiveness = 1.0f;
+                float endAggressiveness = 0.25f;
+
+                float alignmentThreshold = 1.0f;
 
                 float randomnessScale = 5.0f;
                 float offsetJitter = 1.0f;
@@ -60,32 +103,30 @@ namespace AutoPolarAlign
                     AltitudeBacklash = altBacklashCompensation * backlashScale,
                     AltitudeCalibrationDistance = altCalibrationDistance,
                     AzimuthBacklash = azBacklashCompensation * backlashScale,
-                    AzimuthCalibrationDistance = azCalibrationDistance
+                    AzimuthCalibrationDistance = azCalibrationDistance,
+                    StartAggressiveness = startAggressiveness,
+                    EndAggressiveness = endAggressiveness,
+                    AlignmentThreshold = alignmentThreshold
                 };
 
-                var aligner = new AutoPolarAlignment(simulator, simulator, settings);
+                var aligner = new Aligner(simulator, settings)
+                {
+                    CompensationScale = compensationScale
+                };
 
                 try
                 {
                     simulator.Connect();
 
+                    aligner.Reset();
+
                     aligner.Calibrate();
 
-                    double totalOffsets = 0.0;
+                    aligner.Align();
 
-                    int j = 0;
-                    for (; j < settings.MaxAlignmentIterations; ++j)
-                    {
-                        if (!aligner.AlignOnce(settings.AlignmentThreshold, aggressiveness, compensationScale))
-                        {
-                            break;
-                        }
-                        totalOffsets += simulator.TrueAlignmentOffset.Length;
-                    }
-
-                    results.Add(simulator.TrueAlignmentOffset.Length);
-                    totals.Add(totalOffsets);
-                    iterations.Add(j);
+                    results.Add(aligner.CurrentOffset.Length);
+                    totals.Add(aligner.TotalOffsets);
+                    iterations.Add(aligner.Iterations);
                 }
                 finally
                 {
