@@ -99,6 +99,8 @@ namespace AutoPolarAlign
         {
             CheckDirectory();
 
+            bool first = true;
+
             using (var watcher = new FileSystemWatcher(LogPath))
             using (var waitHandle = new AutoResetEvent(false))
             {
@@ -117,6 +119,13 @@ namespace AutoPolarAlign
 
                     if (TryParseLog(log))
                     {
+                        // Skip the first solution to ensure that plate solving
+                        // has started only after this method was called
+                        if (first)
+                        {
+                            first = false;
+                            continue;
+                        }
                         break;
                     }
 
