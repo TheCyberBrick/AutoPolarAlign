@@ -16,10 +16,12 @@ namespace AutoPolarAlign
             public double CompensationScale { get; set; } = 1.0;
 
             private readonly Simulator simulator;
+            private readonly bool logProgress;
 
-            public Aligner(Simulator simulator, Settings settings) : base(simulator, simulator, settings)
+            public Aligner(Simulator simulator, Settings settings, bool logProgress) : base(simulator, simulator, settings)
             {
                 this.simulator = simulator;
+                this.logProgress = logProgress;
             }
 
             public void Reset()
@@ -31,7 +33,27 @@ namespace AutoPolarAlign
 
             public override bool AlignOnce(double correctionThreshold, double aggressiveness = 1, double backlashCompensationPercent = 1)
             {
+                if (Iterations == 0 && logProgress)
+                {
+                    Console.WriteLine("┌─────────────┬─────────────┬─────────────┬─────────────┐");
+                    Console.WriteLine("│           X │           Y │     Azimuth │    Altitude │");
+                    Console.WriteLine("├─────────────┼─────────────┼─────────────┼─────────────┤");
+                    LogProgress();
+                }
+
                 bool result = base.AlignOnce(correctionThreshold, aggressiveness, backlashCompensationPercent * CompensationScale);
+
+                if (logProgress)
+                {
+                    if (result)
+                    {
+                        LogProgress();
+                    }
+                    else
+                    {
+                        Console.WriteLine("└─────────────┴─────────────┴─────────────┴─────────────┘");
+                    }
+                }
 
                 TotalOffsets += simulator.TrueAlignmentOffset.Length;
                 CurrentOffset = simulator.TrueAlignmentOffset;
@@ -43,11 +65,17 @@ namespace AutoPolarAlign
 
                 return result;
             }
+
+            private void LogProgress()
+            {
+                var trueOffsetInAltAz = AlignmentOffsetToAltAzOffset(simulator.TrueAlignmentOffset);
+                Console.WriteLine(string.Format("│ {0,11:#######0.00} │ {1,11:#######0.00} │ {2,11:#######0.00} │ {3,11:#######0.00} │", simulator.TrueAlignmentOffset.X, simulator.TrueAlignmentOffset.Y, trueOffsetInAltAz.Azimuth, trueOffsetInAltAz.Altitude));
+            }
         }
 
         public static void Run()
         {
-            int numRuns = 20;
+            int numRuns = 3;
 
             var rng = new Random();
 
@@ -68,7 +96,7 @@ namespace AutoPolarAlign
                 float backlashScale = 1.0f;
                 float compensationScale = 1.0f;
 
-                float startAggressiveness = 1.0f;
+                float startAggressiveness = 0.95f;
                 float endAggressiveness = 0.25f;
 
                 float alignmentThreshold = 1.0f;
@@ -109,7 +137,7 @@ namespace AutoPolarAlign
                     AlignmentThreshold = alignmentThreshold
                 };
 
-                var aligner = new Aligner(simulator, settings)
+                var aligner = new Aligner(simulator, settings, true)
                 {
                     CompensationScale = compensationScale
                 };

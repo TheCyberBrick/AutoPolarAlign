@@ -149,7 +149,7 @@ namespace AutoPolarAlign
             return true;
         }
 
-        private bool LinearFit(List<Vec2> positions, out Vec2 dir, out Vec2 center)
+        protected bool LinearFit(List<Vec2> positions, out Vec2 dir, out Vec2 center)
         {
             dir = new Vec2();
             center = new Vec2();
@@ -211,14 +211,14 @@ namespace AutoPolarAlign
             return true;
         }
 
-        private Vec2 AlignmentOffsetToAltAzOffset(Vec2 offset)
+        protected Vec2 AlignmentOffsetToAltAzOffset(Vec2 offset)
         {
             double alt = Altitude.CalibratedDirection.Dot(offset) * Altitude.CalibratedMagnitude;
             double az = Azimuth.CalibratedDirection.Dot(offset) * Azimuth.CalibratedMagnitude;
             return new Vec2(az, alt);
         }
 
-        private void MoveAxisWithCompensation(Axis axis, double amount, double backlashCompensationPercent = 1.0)
+        protected void MoveAxisWithCompensation(Axis axis, double amount, double backlashCompensationPercent = 1.0)
         {
             if (axis.Move(axis.EstimateCompensatedMove(amount, backlashCompensationPercent), out amount))
             {
@@ -244,7 +244,7 @@ namespace AutoPolarAlign
             }
         }
 
-        private Vec2 EstimateCorrection()
+        protected Vec2 EstimateCorrection()
         {
             Vec2 offset = new Vec2();
             for (int i = 0; i < settings.SamplesPerMeasurement; ++i)

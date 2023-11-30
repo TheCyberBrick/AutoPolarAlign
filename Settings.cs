@@ -13,7 +13,7 @@
         public int MaxAlignmentIterations = 16;
         public double AlignmentThreshold = 0.2;
         public bool AcceptBestEffort = false;
-        public double StartAggressiveness = 1.0;
+        public double StartAggressiveness = 0.95;
         public double EndAggressiveness = 0.25;
     }
 }
