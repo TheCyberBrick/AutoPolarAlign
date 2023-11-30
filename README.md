@@ -2,6 +2,8 @@
 
 A simple command line tool for automated polar alignment with Avalon mounts and iOptron iPolar.
 
+Get the application [here](https://github.com/TheCyberBrick/Auto-Polar-Align/releases).
+
 [![AutoPolarAlign Youtube Video](http://img.youtube.com/vi/LklTLXXU3LY/0.jpg)](http://www.youtube.com/watch?v=LklTLXXU3LY "AutoPolarAlign Youtube Video")
 
 ## Requirements
@@ -18,5 +20,6 @@ Note: If StarGo was installed with admin privileges then you must also run AutoP
 
 ## TODOs
 - Configuration
+- Determine backlash automatically
 - Integrate with Starkeeper Voyager (DragScript), N.I.N.A (TPPA?)
 - Maybe QHY PoleMaster support
