@@ -24,17 +24,16 @@ namespace AutoPolarAlign
         public double SettlingTime { get; set; } = 1.0;
 
 
-        private readonly Telescope telescope;
-
-        public StarGoMount()
-        {
-            telescope = new Telescope("ASCOM.AvalonStarGo.NET.Telescope");
-        }
+        private Telescope telescope;
 
         public void Connect()
         {
             try
             {
+                if (telescope == null)
+                {
+                    telescope = new Telescope("ASCOM.AvalonStarGo.NET.Telescope");
+                }
                 telescope.Connected = true;
                 Thread.Sleep(TimeSpan.FromSeconds(1));
             }
