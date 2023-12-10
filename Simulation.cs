@@ -31,7 +31,7 @@ namespace AutoPolarAlign
                 CurrentOffset = new Vec2();
             }
 
-            public override bool AlignOnce(double correctionThreshold, double aggressiveness = 1, double backlashCompensationPercent = 1)
+            public override void Move(Vec2 correction, double aggressiveness = 1, double backlashCompensationPercent = 1)
             {
                 if (Iterations == 0 && logProgress)
                 {
@@ -41,11 +41,13 @@ namespace AutoPolarAlign
                     LogProgress();
                 }
 
-                bool result = base.AlignOnce(correctionThreshold, aggressiveness, backlashCompensationPercent * CompensationScale);
+                base.Move(correction, aggressiveness, backlashCompensationPercent * CompensationScale);
+
+                bool isDone = correction.Length < settings.AlignmentThreshold;
 
                 if (logProgress)
                 {
-                    if (result)
+                    if (!isDone)
                     {
                         LogProgress();
                     }
@@ -58,12 +60,10 @@ namespace AutoPolarAlign
                 TotalOffsets += simulator.TrueAlignmentOffset.Length;
                 CurrentOffset = simulator.TrueAlignmentOffset;
 
-                if (result)
+                if (!isDone)
                 {
                     ++Iterations;
                 }
-
-                return result;
             }
 
             private void LogProgress()
@@ -108,8 +108,10 @@ namespace AutoPolarAlign
                 float altBacklash = 30.0f;
                 float azBacklash = 30.0f;
 
-                float altBacklashCompensation = 30.0f;
-                float azBacklashCompensation = 30.0f;
+                float altBacklashCompensation = 50.0f;
+                float azBacklashCompensation = 50.0f;
+
+                bool backlashCalibration = true;
 
                 float altCalibrationDistance = 150.0f;
                 float azCalibrationDistance = 150.0f;
@@ -130,11 +132,14 @@ namespace AutoPolarAlign
                 {
                     AltitudeBacklash = altBacklashCompensation * backlashScale,
                     AltitudeCalibrationDistance = altCalibrationDistance,
+                    AltitudeBacklashCalibration = backlashCalibration,
                     AzimuthBacklash = azBacklashCompensation * backlashScale,
                     AzimuthCalibrationDistance = azCalibrationDistance,
+                    AzimuthBacklashCalibration = backlashCalibration,
                     StartAggressiveness = startAggressiveness,
                     EndAggressiveness = endAggressiveness,
-                    AlignmentThreshold = alignmentThreshold
+                    AlignmentThreshold = alignmentThreshold,
+                    StartAtLowAltitude = true,
                 };
 
                 var aligner = new Aligner(simulator, settings, true)
@@ -148,9 +153,7 @@ namespace AutoPolarAlign
 
                     aligner.Reset();
 
-                    aligner.Calibrate();
-
-                    aligner.Align();
+                    aligner.Run();
 
                     results.Add(aligner.CurrentOffset.Length);
                     totals.Add(aligner.TotalOffsets);

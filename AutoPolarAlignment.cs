@@ -12,7 +12,7 @@ namespace AutoPolarAlign
         public Axis Altitude { get; } = new Axis();
         public Axis Azimuth { get; } = new Axis();
 
-        private readonly Settings settings;
+        protected readonly Settings settings;
 
         public AutoPolarAlignment(IPolarAlignmentMount mount, IPolarAlignmentSolver solver, Settings settings)
         {
@@ -36,15 +36,46 @@ namespace AutoPolarAlign
                 throw new Exception("Calibration failed");
             }
 
+            if (settings.StartAtLowAltitude && !PositionAxisToSide(Altitude, -Math.Max(Altitude.BacklashCompensation, settings.AltitudeBacklash)))
+            {
+                throw new Exception("Failed positioning altitude below pole");
+            }
+
             return Align();
         }
 
         public bool Align()
         {
+            Vec2 previousCorrection = new Vec2();
+
             for (int i = 0; i < settings.MaxAlignmentIterations; ++i)
             {
                 double aggressiveness = settings.MaxAlignmentIterations > 1 ? (settings.EndAggressiveness + (settings.StartAggressiveness - settings.EndAggressiveness) / (settings.MaxAlignmentIterations - 1) * (settings.MaxAlignmentIterations - 1 - i)) : settings.EndAggressiveness;
-                if (!AlignOnce(settings.AlignmentThreshold, aggressiveness))
+
+                var correction = EstimateCorrection();
+
+                if (i > 0)
+                {
+                    // If new correction is in opposite direction then it overshot
+                    // which means that the backlash compensation is too large, so
+                    // it must be reduced by the overshot amount
+
+                    if (settings.AltitudeBacklashCalibration && Math.Sign(previousCorrection.Altitude) != Math.Sign(correction.Altitude))
+                    {
+                        Altitude.BacklashCompensation = Math.Max(0, Altitude.BacklashCompensation - Math.Abs(correction.Altitude));
+                    }
+
+                    if (settings.AzimuthBacklashCalibration && Math.Sign(previousCorrection.Azimuth) != Math.Sign(correction.Azimuth))
+                    {
+                        Azimuth.BacklashCompensation = Math.Max(0, Azimuth.BacklashCompensation - Math.Abs(correction.Azimuth));
+                    }
+                }
+
+                previousCorrection = correction;
+
+                Move(correction, aggressiveness: aggressiveness);
+
+                if (correction.Length < settings.AlignmentThreshold)
                 {
                     return true;
                 }
@@ -55,9 +86,7 @@ namespace AutoPolarAlign
                 return true;
             }
 
-            var correction = EstimateCorrection();
-
-            return correction.Length < settings.AlignmentThreshold;
+            return EstimateCorrection().Length < settings.AlignmentThreshold;
         }
 
         public bool Calibrate()
@@ -65,51 +94,57 @@ namespace AutoPolarAlign
             return CalibrateAltitude() && CalibrateAzimuth();
         }
 
-        public bool CalibrateAltitude()
+        private Vec2 MeasureCurrentOffset()
         {
-            return Calibrate(Altitude);
-        }
-
-        public bool CalibrateAzimuth()
-        {
-            return Calibrate(Azimuth);
-        }
-
-        private bool Calibrate(Axis axis)
-        {
-            // Remove any backlash before calibration
-            MoveAxisWithCompensation(axis, 1.25f * axis.BacklashCompensation, backlashCompensationPercent: 0.0f);
-
-            // Estimate origin
-            var startPosition = new Vec2();
+            var offset = new Vec2();
             for (int i = 0; i < settings.SamplesPerMeasurement; ++i)
             {
                 solver.Solve();
-                startPosition += solver.AlignmentOffset;
+                offset += solver.AlignmentOffset;
             }
-            startPosition /= settings.SamplesPerMeasurement;
+            offset /= settings.SamplesPerMeasurement;
+            return offset;
+        }
 
-            // Take samples to estimate axis direction and scale
+        private bool CalibrateAltitude()
+        {
+            // Reverse altitude calibration dir to later help
+            // StartAtLowAltitude if enabled
+            return CalibrateAxis(Altitude, settings.AltitudeBacklashCalibration, reverse: true);
+        }
+
+        private bool CalibrateAzimuth()
+        {
+            return CalibrateAxis(Azimuth, settings.AzimuthBacklashCalibration);
+        }
+
+        private bool CalibrateAxis(Axis axis, bool calibrateBacklash, bool reverse = false)
+        {
+            double calibrationDir = reverse ? -1 : 1;
             double calibrationDistance = axis.CalibrationDistance;
-            double stepDistance = calibrationDistance / settings.SamplesPerCalibration;
-            var samples = new List<Vec2>();
-            for (int i = 0; i < settings.SamplesPerCalibration; ++i)
-            {
-                MoveAxisWithCompensation(axis, stepDistance);
-                var offset = new Vec2();
-                for (int j = 0; j < settings.SamplesPerMeasurement; ++j)
-                {
-                    solver.Solve();
-                    offset += solver.AlignmentOffset;
-                }
-                samples.Add(offset / settings.SamplesPerMeasurement);
-            }
+
+            // Remove any backlash before calibration
+            MoveAxisWithCompensation(axis, axis.BacklashCompensation * calibrationDir, backlashCompensationPercent: 0.0f);
+
+            // Estimate origin
+            var startOffset = MeasureCurrentOffset();
 
             Vec2 dir;
-            Vec2 endPosition;
+            Vec2 endOffset;
+            double dst;
 
             if (settings.SamplesPerCalibration > 1)
             {
+                // Take samples to estimate axis direction and scale
+                double stepDistance = calibrationDistance / settings.SamplesPerCalibration * calibrationDir;
+                var samples = new List<Vec2>();
+                for (int i = 0; i < settings.SamplesPerCalibration; ++i)
+                {
+                    MoveAxisWithCompensation(axis, stepDistance);
+                    samples.Add(MeasureCurrentOffset());
+                }
+                endOffset = samples[samples.Count - 1];
+
                 // Try to find a linear fit for samples
                 if (!LinearFit(samples, out dir, out var center))
                 {
@@ -117,33 +152,57 @@ namespace AutoPolarAlign
                 }
 
                 // Calculate average of extrapolated end position
-                endPosition = new Vec2();
+                Vec2 avgEndOffset = new Vec2();
                 for (int i = 0; i < samples.Count; ++i)
                 {
                     var sample = samples[i];
                     var projection = center + dir * dir.Dot(sample - center);
-                    endPosition += (projection - startPosition) / (i + 1) * samples.Count;
+                    avgEndOffset += (projection - startOffset) / (i + 1) * samples.Count;
                 }
-                endPosition /= samples.Count;
-                endPosition += startPosition;
+                avgEndOffset /= samples.Count;
+                avgEndOffset += startOffset;
+                dst = (avgEndOffset - startOffset).Length;
             }
             else
             {
-                endPosition = samples[samples.Count - 1];
-                dir = (startPosition - endPosition).Normalized();
+                MoveAxisWithCompensation(axis, calibrationDistance * calibrationDir);
+                endOffset = MeasureCurrentOffset();
+                dir = (startOffset - endOffset).Normalized();
+                dst = (endOffset - startOffset).Length;
             }
 
             // Set calibration value so that the move
             // amount can be calculated given an alignment
             // offset
-            double dst = (endPosition - startPosition).Length;
             axis.CalibratedMagnitude = calibrationDistance / dst;
-            axis.CalibratedDirection = dir;
 
             // Flip if it points in opposite direction
-            if (axis.CalibratedDirection.Dot(endPosition - startPosition) < 0)
+            if (dir.Dot(endOffset - startOffset) < 0)
             {
-                axis.CalibratedDirection *= -1;
+                axis.CalibratedDirection = -dir * calibrationDir;
+            }
+            else
+            {
+                axis.CalibratedDirection = dir * calibrationDir;
+            }
+
+            if (calibrateBacklash)
+            {
+                var expectedMoveDistance = axis.BacklashCompensation + calibrationDistance;
+
+                MoveAxisWithCompensation(axis, -expectedMoveDistance * calibrationDir, backlashCompensationPercent: 0.0f);
+
+                var newEndOffset = MeasureCurrentOffset();
+
+                var actualMoveDistance = -axis.CalibratedDirection.Dot(newEndOffset - endOffset) * calibrationDir;
+
+                if (actualMoveDistance <= 0)
+                {
+                    // Axis moved in wrong direction
+                    return false;
+                }
+
+                axis.BacklashCompensation = (expectedMoveDistance - actualMoveDistance * axis.CalibratedMagnitude) * 0.99;
             }
 
             return true;
@@ -211,6 +270,33 @@ namespace AutoPolarAlign
             return true;
         }
 
+        private bool PositionAxisToSide(Axis axis, double margin)
+        {
+            int i = 0;
+            while (true)
+            {
+                var axisOffset = axis.CalibratedDirection.Dot(MeasureCurrentOffset()) * axis.CalibratedMagnitude;
+
+                if (margin < 0 && axisOffset <= margin)
+                {
+                    break;
+                }
+                else if (margin >= 0 && axisOffset >= margin)
+                {
+                    break;
+                }
+
+                if (i++ > settings.MaxPositioningAttempts + 1)
+                {
+                    return false;
+                }
+
+                MoveAxisWithCompensation(axis, margin * 1.1 - axisOffset);
+            }
+
+            return true;
+        }
+
         protected Vec2 AlignmentOffsetToAltAzOffset(Vec2 offset)
         {
             double alt = Altitude.CalibratedDirection.Dot(offset) * Altitude.CalibratedMagnitude;
@@ -246,30 +332,14 @@ namespace AutoPolarAlign
 
         protected Vec2 EstimateCorrection()
         {
-            Vec2 offset = new Vec2();
-            for (int i = 0; i < settings.SamplesPerMeasurement; ++i)
-            {
-                solver.Solve();
-                offset += solver.AlignmentOffset;
-            }
-            offset /= settings.SamplesPerMeasurement;
-
+            var offset = MeasureCurrentOffset();
             return AlignmentOffsetToAltAzOffset(-offset);
         }
 
-        public virtual bool AlignOnce(double correctionThreshold, double aggressiveness = 1.0, double backlashCompensationPercent = 1.0)
+        public virtual void Move(Vec2 correction, double aggressiveness = 1.0, double backlashCompensationPercent = 1.0)
         {
-            var correction = EstimateCorrection();
-
-            if (correction.Length < correctionThreshold)
-            {
-                return false;
-            }
-
             MoveAxisWithCompensation(Altitude, correction.Altitude * aggressiveness, backlashCompensationPercent);
             MoveAxisWithCompensation(Azimuth, correction.Azimuth * aggressiveness, backlashCompensationPercent);
-
-            return true;
         }
     }
 }

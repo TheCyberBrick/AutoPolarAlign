@@ -6,11 +6,15 @@
         public double AltitudeBacklash = 13;
         public double AzimuthCalibrationDistance = 90;
         public double AltitudeCalibrationDistance = 90;
+        public bool AzimuthBacklashCalibration = false;
+        public bool AltitudeBacklashCalibration = false;
         public double AzimuthLimit = 300;
         public double AltitudeLimit = 300;
+        public bool StartAtLowAltitude = true;
         public int SamplesPerCalibration = 1;
         public int SamplesPerMeasurement = 6;
         public int MaxAlignmentIterations = 16;
+        public int MaxPositioningAttempts = 3;
         public double AlignmentThreshold = 0.2;
         public bool AcceptBestEffort = false;
         public double StartAggressiveness = 0.95;
