@@ -113,8 +113,8 @@ namespace AutoPolarAlign
 
                 bool backlashCalibration = true;
 
-                float altCalibrationDistance = 150.0f;
-                float azCalibrationDistance = 150.0f;
+                float altCalibrationDistance = 90.0f;
+                float azCalibrationDistance = 90.0f;
 
                 float initialAltBacklash = 15.0f;
                 float initialAzBacklash = -5.0f;

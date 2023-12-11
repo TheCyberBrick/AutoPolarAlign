@@ -36,11 +36,6 @@ namespace AutoPolarAlign
                 throw new Exception("Calibration failed");
             }
 
-            if (settings.StartAtLowAltitude && !PositionAxisToSide(Altitude, -Math.Max(Altitude.BacklashCompensation, settings.AltitudeBacklash)))
-            {
-                throw new Exception("Failed positioning altitude below pole");
-            }
-
             return Align();
         }
 
@@ -110,7 +105,7 @@ namespace AutoPolarAlign
         {
             // Reverse altitude calibration dir to later help
             // StartAtLowAltitude if enabled
-            return CalibrateAxis(Altitude, settings.AltitudeBacklashCalibration, reverse: true);
+            return CalibrateAxis(Altitude, settings.AltitudeBacklashCalibration, reverse: true, margin: settings.StartAtLowAltitude ? -Math.Max(Altitude.BacklashCompensation, settings.AltitudeBacklash) : 0);
         }
 
         private bool CalibrateAzimuth()
@@ -118,13 +113,13 @@ namespace AutoPolarAlign
             return CalibrateAxis(Azimuth, settings.AzimuthBacklashCalibration);
         }
 
-        private bool CalibrateAxis(Axis axis, bool calibrateBacklash, bool reverse = false)
+        private bool CalibrateAxis(Axis axis, bool calibrateBacklash, bool reverse = false, double margin = 0)
         {
             double calibrationDir = reverse ? -1 : 1;
             double calibrationDistance = axis.CalibrationDistance;
 
             // Remove any backlash before calibration
-            MoveAxisWithCompensation(axis, axis.BacklashCompensation * calibrationDir, backlashCompensationPercent: 0.0f);
+            MoveAxisWithoutCompensation(axis, axis.BacklashCompensation * calibrationDir);
 
             // Estimate origin
             var startOffset = MeasureCurrentOffset();
@@ -140,7 +135,7 @@ namespace AutoPolarAlign
                 var samples = new List<Vec2>();
                 for (int i = 0; i < settings.SamplesPerCalibration; ++i)
                 {
-                    MoveAxisWithCompensation(axis, stepDistance);
+                    MoveAxisWithoutCompensation(axis, stepDistance);
                     samples.Add(MeasureCurrentOffset());
                 }
                 endOffset = samples[samples.Count - 1];
@@ -165,7 +160,7 @@ namespace AutoPolarAlign
             }
             else
             {
-                MoveAxisWithCompensation(axis, calibrationDistance * calibrationDir);
+                MoveAxisWithoutCompensation(axis, calibrationDistance * calibrationDir);
                 endOffset = MeasureCurrentOffset();
                 dir = (startOffset - endOffset).Normalized();
                 dst = (endOffset - startOffset).Length;
@@ -186,15 +181,40 @@ namespace AutoPolarAlign
                 axis.CalibratedDirection = dir * calibrationDir;
             }
 
+            bool isMarginSet = Math.Abs(margin) > double.Epsilon;
+
             if (calibrateBacklash)
             {
-                var expectedMoveDistance = axis.BacklashCompensation + calibrationDistance;
+                double expectedMoveDistance = axis.BacklashCompensation + calibrationDistance;
 
-                MoveAxisWithCompensation(axis, -expectedMoveDistance * calibrationDir, backlashCompensationPercent: 0.0f);
+                if (isMarginSet)
+                {
+                    double compensatedMargin = margin * 1.1 + expectedMoveDistance * calibrationDir;
+
+                    double axisOffset = AlignmentOffsetToAxisOffset(axis, endOffset);
+
+                    double distanceToMargin = compensatedMargin - axisOffset;
+
+                    // Try to move axis further in the same direction such that
+                    // after backlash calibration it already is past the specified
+                    // margin, which makes the MoveAxisPastMargin at the end a no-op
+                    // and also has the benefit that backlash will already be 0 when
+                    // alignment finally begins. This only works if axis limit won't
+                    // be exceeded, otherwise the MoveAxisPastMargin must be done at
+                    // the end.
+                    if (Math.Sign(distanceToMargin) == Math.Sign(compensatedMargin) && Math.Sign(distanceToMargin) == Math.Sign(calibrationDir) && Math.Abs(axis.Position + distanceToMargin) < axis.Limit * 0.99)
+                    {
+                        MoveAxisWithoutCompensation(axis, distanceToMargin);
+                        endOffset = MeasureCurrentOffset();
+                    }
+                }
+
+                // Move back to start position of calibration
+                MoveAxisWithoutCompensation(axis, -expectedMoveDistance * calibrationDir);
 
                 var newEndOffset = MeasureCurrentOffset();
 
-                var actualMoveDistance = -axis.CalibratedDirection.Dot(newEndOffset - endOffset) * calibrationDir;
+                double actualMoveDistance = -AlignmentOffsetToAxisOffset(axis, newEndOffset - endOffset) * calibrationDir;
 
                 if (actualMoveDistance <= 0)
                 {
@@ -202,7 +222,12 @@ namespace AutoPolarAlign
                     return false;
                 }
 
-                axis.BacklashCompensation = (expectedMoveDistance - actualMoveDistance * axis.CalibratedMagnitude) * 0.99;
+                axis.BacklashCompensation = (expectedMoveDistance - actualMoveDistance) * 0.99;
+            }
+
+            if (isMarginSet && !MoveAxisPastMargin(axis, margin))
+            {
+                return false;
             }
 
             return true;
@@ -270,12 +295,12 @@ namespace AutoPolarAlign
             return true;
         }
 
-        private bool PositionAxisToSide(Axis axis, double margin)
+        private bool MoveAxisPastMargin(Axis axis, double margin)
         {
             int i = 0;
             while (true)
             {
-                var axisOffset = axis.CalibratedDirection.Dot(MeasureCurrentOffset()) * axis.CalibratedMagnitude;
+                double axisOffset = AlignmentOffsetToAxisOffset(axis, MeasureCurrentOffset());
 
                 if (margin < 0 && axisOffset <= margin)
                 {
@@ -297,11 +322,21 @@ namespace AutoPolarAlign
             return true;
         }
 
+        protected double AlignmentOffsetToAxisOffset(Axis axis, Vec2 offset)
+        {
+            return axis.CalibratedDirection.Dot(offset) * axis.CalibratedMagnitude;
+        }
+
         protected Vec2 AlignmentOffsetToAltAzOffset(Vec2 offset)
         {
-            double alt = Altitude.CalibratedDirection.Dot(offset) * Altitude.CalibratedMagnitude;
-            double az = Azimuth.CalibratedDirection.Dot(offset) * Azimuth.CalibratedMagnitude;
+            double alt = AlignmentOffsetToAxisOffset(Altitude, offset);
+            double az = AlignmentOffsetToAxisOffset(Azimuth, offset);
             return new Vec2(az, alt);
+        }
+
+        protected void MoveAxisWithoutCompensation(Axis axis, double amount)
+        {
+            MoveAxisWithCompensation(axis, amount, backlashCompensationPercent: 0.0);
         }
 
         protected void MoveAxisWithCompensation(Axis axis, double amount, double backlashCompensationPercent = 1.0)
