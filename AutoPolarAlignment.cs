@@ -31,12 +31,48 @@ namespace AutoPolarAlign
 
         public bool Run()
         {
+            if (!WaitUntilConsecutiveSolves())
+            {
+                throw new Exception("Timed out waiting for successful plate solves");
+            }
+
             if (!Calibrate())
             {
                 throw new Exception("Calibration failed");
             }
 
             return Align();
+        }
+
+        protected bool WaitUntilConsecutiveSolves()
+        {
+            if (settings.WaitUntilConsecutiveSolves <= 0)
+            {
+                return true;
+            }
+
+            var startTime = DateTime.Now;
+
+            int consecutiveSolves = 0;
+
+            while ((DateTime.Now - startTime).TotalSeconds < settings.MaxWaitSeconds)
+            {
+                if (solver.Solve(repeatUntilSuccess: false))
+                {
+                    consecutiveSolves++;
+
+                    if (consecutiveSolves >= settings.WaitUntilConsecutiveSolves)
+                    {
+                        return true;
+                    }
+                }
+                else
+                {
+                    consecutiveSolves = 0;
+                }
+            }
+
+            return false;
         }
 
         public bool Align()

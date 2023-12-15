@@ -95,9 +95,11 @@ namespace AutoPolarAlign
             Disconnect();
         }
 
-        public void Solve()
+        public bool Solve(bool repeatUntilSuccess)
         {
             CheckDirectory();
+
+            bool success = false;
 
             bool first = true;
 
@@ -117,36 +119,38 @@ namespace AutoPolarAlign
                     var logFile = FindLatestLogFile();
                     var log = ReadLastLine(logFile);
 
-                    if (TryParseLog(log))
+                    success = TryParseLog(log, out bool solveFailure);
+
+                    if (first && (success || solveFailure))
                     {
-                        // Skip the first solution to ensure that plate solving
+                        // Skip the first result to ensure that plate solving
                         // has started only after this method was called
-                        if (first)
-                        {
-                            first = false;
-                            continue;
-                        }
+                        first = false;
+                        continue;
+                    }
+
+                    if (success || (!repeatUntilSuccess && solveFailure))
+                    {
                         break;
                     }
 
                     waitHandle.WaitOne(TimeSpan.FromSeconds(0.5 * MaxLogAge));
                 }
             }
+
+            return success;
         }
 
-        private bool TryParseLog(string log)
+        private bool TryParseLog(string log, out bool solveFailure)
         {
+            solveFailure = false;
+
             var match = LogRegex.Match(log);
 
             if (match.Success)
             {
                 string timestamp = match.Groups["timestamp"].Value;
                 if (timestamp == lastTimestamp)
-                {
-                    return false;
-                }
-
-                if (!bool.TryParse(match.Groups["solved"].Value, out var solved) || !solved)
                 {
                     return false;
                 }
@@ -161,9 +165,24 @@ namespace AutoPolarAlign
                     return false;
                 }
 
-                AlignmentOffset = new Vec2(x - CenterX, y - CenterY);
+                if (!bool.TryParse(match.Groups["solved"].Value, out var solved))
+                {
+                    return false;
+                }
+
+                if (!solved)
+                {
+                    solveFailure = true;
+                }
 
                 lastTimestamp = timestamp;
+
+                if (solveFailure)
+                {
+                    return false;
+                }
+
+                AlignmentOffset = new Vec2(x - CenterX, y - CenterY);
 
                 return true;
             }

@@ -13,6 +13,6 @@ namespace AutoPolarAlign
 
         void Disconnect();
 
-        void Solve();
+        bool Solve(bool repeatUntilSuccess = true);
     }
 }

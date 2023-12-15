@@ -43,7 +43,16 @@ namespace AutoPolarAlign
         public Vec2 TrueAzAxis { get; }
 
 
+        public double StartSolveSuccessChance { get; set; } = 0.0;
+
+        public double EndSolveSuccessChance { get; set; } = 0.95;
+
+        public int WarmupSolveIterations { get; set; } = 5000;
+
+
         private bool connected;
+
+        private int currentSolveIteration = 0;
 
         public Simulator(Random rng, Vec2 initialAlignmentOffset, Vec2 altAxis, Vec2 azAxis, double offsetJitter, double moveJitter, double altBacklash, double azBacklash, double initialAltBacklash, double initialAzBacklash)
         {
@@ -87,11 +96,25 @@ namespace AutoPolarAlign
             }
         }
 
-        public void Solve()
+        public bool Solve(bool repeatUntilSuccess)
         {
             CheckConnected();
 
+            currentSolveIteration++;
+
+            if (!repeatUntilSuccess && WarmupSolveIterations > 0)
+            {
+                double successChance = StartSolveSuccessChance + (EndSolveSuccessChance - StartSolveSuccessChance) / WarmupSolveIterations * Math.Min(WarmupSolveIterations, currentSolveIteration);
+
+                if (rng.NextDouble() > successChance)
+                {
+                    return false;
+                }
+            }
+
             AlignmentOffset = TrueAlignmentOffset + new Vec2((float)(rng.NextDouble() - 0.5) * offsetJitter, (float)(rng.NextDouble() - 0.5) * offsetJitter);
+
+            return true;
         }
 
         public void MoveAltitude(double amount)
