@@ -14,6 +14,8 @@ class MountInitializer
         using (var mount = new StarGoMount())
         using (var solver = new OptronIPolarSolver())
         {
+            Console.WriteLine("Connecting to mount...");
+
             try
             {
                 mount.Connect();
@@ -22,6 +24,8 @@ class MountInitializer
             {
                 throw new Exception("Failed to connect to mount", ex);
             }
+
+            Console.WriteLine("Connecting to plate solver...");
 
             try
             {

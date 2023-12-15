@@ -40,6 +40,13 @@ namespace AutoPolarAlign
 
         public int LastDirection { get; private set; }
 
+        public string Name { get; }
+
+        public Axis(string name)
+        {
+            Name = name;
+        }
+
         public void Reset(double position = 0.0f)
         {
             Position = position;

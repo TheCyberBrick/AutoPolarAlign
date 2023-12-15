@@ -20,7 +20,8 @@
         public bool AcceptBestEffort = false;
         public double StartAggressiveness = 0.95;
         public double EndAggressiveness = 0.25;
-        public int WaitUntilConsecutiveSolves = 5;
+        public int WaitUntilConsecutiveSolving = 5;
+        public int WaitSecondsBetweenSolving = 1;
         public int MaxWaitSeconds = 3600;
     }
 }

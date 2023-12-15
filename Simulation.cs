@@ -143,6 +143,7 @@ namespace AutoPolarAlign
                     EndAggressiveness = endAggressiveness,
                     AlignmentThreshold = alignmentThreshold,
                     StartAtLowAltitude = true,
+                    WaitSecondsBetweenSolving = 0,
                 };
 
                 var aligner = new Aligner(simulator, settings, true)

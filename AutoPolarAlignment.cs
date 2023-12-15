@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace AutoPolarAlign
 {
@@ -9,9 +10,9 @@ namespace AutoPolarAlign
 
         private readonly IPolarAlignmentSolver solver;
 
-        public Axis Altitude { get; } = new Axis();
+        public Axis Altitude { get; } = new Axis("altitude");
 
-        public Axis Azimuth { get; } = new Axis();
+        public Axis Azimuth { get; } = new Axis("azimuth");
 
         protected readonly Settings settings;
 
@@ -34,7 +35,7 @@ namespace AutoPolarAlign
         {
             if (!WaitUntilConsecutiveSolves())
             {
-                throw new Exception("Timed out waiting for successful plate solves");
+                throw new Exception("Timed out waiting for successful plate solving");
             }
 
             if (!Calibrate())
@@ -42,15 +43,28 @@ namespace AutoPolarAlign
                 throw new Exception("Calibration failed");
             }
 
-            return Align();
+            bool success = Align();
+
+            if (success)
+            {
+                Console.WriteLine("Alignment success");
+            }
+            else
+            {
+                Console.WriteLine("Alignment failure");
+            }
+
+            return success;
         }
 
         protected bool WaitUntilConsecutiveSolves()
         {
-            if (settings.WaitUntilConsecutiveSolves <= 0)
+            if (settings.WaitUntilConsecutiveSolving <= 0)
             {
                 return true;
             }
+
+            Console.WriteLine("Waiting for plate solving...");
 
             var startTime = DateTime.Now;
 
@@ -62,7 +76,7 @@ namespace AutoPolarAlign
                 {
                     consecutiveSolves++;
 
-                    if (consecutiveSolves >= settings.WaitUntilConsecutiveSolves)
+                    if (consecutiveSolves >= settings.WaitUntilConsecutiveSolving)
                     {
                         return true;
                     }
@@ -71,6 +85,11 @@ namespace AutoPolarAlign
                 {
                     consecutiveSolves = 0;
                 }
+
+                if (settings.WaitSecondsBetweenSolving > 0)
+                {
+                    Thread.Sleep(settings.WaitSecondsBetweenSolving * 1000);
+                }
             }
 
             return false;
@@ -78,6 +97,8 @@ namespace AutoPolarAlign
 
         public bool Align()
         {
+            Console.WriteLine("Starting alignment...");
+
             Vec2 previousCorrection = new Vec2();
 
             for (int i = 0; i < settings.MaxAlignmentIterations; ++i)
@@ -127,6 +148,8 @@ namespace AutoPolarAlign
                     }
                 }
 
+                Console.WriteLine("Correction: " + correction);
+
                 Move(correction, aggressiveness: aggressiveness);
 
                 if (correction.Length < settings.AlignmentThreshold)
@@ -174,8 +197,12 @@ namespace AutoPolarAlign
 
         private bool CalibrateAxis(Axis axis, bool calibrateBacklash, bool reverse = false, double margin = 0)
         {
+            Console.WriteLine("Calibrating " + axis.Name + " axis...");
+
             double calibrationDir = reverse ? -1 : 1;
             double calibrationDistance = axis.CalibrationDistance;
+
+            Console.WriteLine("Clearing backlash (" + (axis.BacklashCompensation * calibrationDir).ToString("+#.###;-#.###") + ")");
 
             // Remove any backlash before calibration
             MoveAxisWithoutCompensation(axis, axis.BacklashCompensation * calibrationDir);
@@ -186,6 +213,8 @@ namespace AutoPolarAlign
             Vec2 dir;
             Vec2 endOffset;
             double dst;
+
+            Console.WriteLine("Calibrating axis (" + (calibrationDistance * calibrationDir).ToString("+#.###;-#.###") + ")");
 
             if (settings.SamplesPerCalibration > 1)
             {
@@ -240,6 +269,9 @@ namespace AutoPolarAlign
                 axis.CalibratedDirection = dir * calibrationDir;
             }
 
+            Console.WriteLine("Direction: " + axis.CalibratedDirection);
+            Console.WriteLine("Magnitude: " + axis.CalibratedMagnitude);
+
             bool isMarginSet = Math.Abs(margin) > double.Epsilon;
 
             if (calibrateBacklash)
@@ -263,10 +295,14 @@ namespace AutoPolarAlign
                     // the end.
                     if (Math.Sign(distanceToMargin) == Math.Sign(compensatedMargin) && Math.Sign(distanceToMargin) == Math.Sign(calibrationDir) && Math.Abs(axis.Position + distanceToMargin) < axis.Limit * 0.99)
                     {
+                        Console.WriteLine("Positioning to " + (axis.Position + distanceToMargin) + " (" + distanceToMargin.ToString("+#.###;-#.###") + ")");
+
                         MoveAxisWithoutCompensation(axis, distanceToMargin);
                         endOffset = MeasureCurrentOffset();
                     }
                 }
+
+                Console.WriteLine("Calibrating backlash (" + (-expectedMoveDistance * calibrationDir).ToString("+#.###;-#.###") + ")");
 
                 // Move back to start position of calibration
                 MoveAxisWithoutCompensation(axis, -expectedMoveDistance * calibrationDir);
@@ -282,6 +318,8 @@ namespace AutoPolarAlign
                 }
 
                 axis.BacklashCompensation = (expectedMoveDistance - actualMoveDistance) * 0.99;
+
+                Console.WriteLine("Backlash: " + axis.BacklashCompensation);
             }
 
             if (isMarginSet && !MoveAxisPastMargin(axis, margin))
@@ -375,7 +413,11 @@ namespace AutoPolarAlign
                     return false;
                 }
 
-                MoveAxisWithCompensation(axis, margin * 1.1 - axisOffset);
+                double distanceToMargin = margin * 1.1 - axisOffset;
+
+                Console.WriteLine("Positioning to " + (axis.Position + distanceToMargin) + " (" + distanceToMargin.ToString("+#.###;-#.###") + ")");
+
+                MoveAxisWithCompensation(axis, distanceToMargin);
             }
 
             return true;
