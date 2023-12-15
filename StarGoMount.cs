@@ -121,38 +121,58 @@ namespace AutoPolarAlign
             SendCommand(":X11500001#");
         }
 
-        private void SendPositionAltitude(double pos)
+        private double SendPositionAltitude(double pos)
         {
-            if ((int)Math.Ceiling(Math.Abs(pos) * Aux2Steps) > 99999)
+            double steps = pos * Aux2Steps;
+
+            if (Math.Abs(steps) > 99998)
             {
-                throw new Exception("Position too large");
+                steps = Math.Sign(steps) * 99998;
+                pos -= steps / Aux2Steps;
+            }
+            else
+            {
+                pos = 0;
             }
 
             if (ReverseAltitude)
             {
-                pos = -pos;
+                steps = -steps;
             }
 
-            if (pos > 0)
+            if (steps > 0)
             {
-                SendCommand(string.Format(CultureInfo.InvariantCulture, ":X175{0:D5}#", (int)Math.Ceiling(pos * Aux2Steps)));
+                SendCommand(string.Format(CultureInfo.InvariantCulture, ":X175{0:D5}#", (int)Math.Ceiling(steps)));
             }
             else
             {
-                SendCommand(string.Format(CultureInfo.InvariantCulture, ":X174{0:D5}#", (int)Math.Floor(100000 + pos * Aux2Steps)));
+                SendCommand(string.Format(CultureInfo.InvariantCulture, ":X174{0:D5}#", (int)Math.Floor(100000 + steps)));
             }
+
+            return pos;
         }
 
         public void MoveAltitude(double amount)
         {
-            SendSyncAltitude();
-            if (SetAuxSpeed)
+            while (Math.Abs(amount) > double.Epsilon)
             {
-                SendSetSpeedAltitude(Aux2Speed);
+                SendSyncAltitude();
+
+                if (SetAuxSpeed)
+                {
+                    SendSetSpeedAltitude(Aux2Speed);
+                }
+
+                double startAmount = amount;
+
+                amount = SendPositionAltitude(amount);
+
+                double moveAmount = amount - startAmount;
+
+                Thread.Sleep(TimeSpan.FromSeconds(EstimateDurationForMove(moveAmount, Aux2Steps, Aux2Speed)));
+
+                StopAltitude();
             }
-            SendPositionAltitude(amount);
-            Thread.Sleep(TimeSpan.FromSeconds(EstimateDurationForMove(amount, Aux2Steps, Aux2Speed)));
-            StopAltitude();
         }
 
         public void StopAltitude()
@@ -204,38 +224,58 @@ namespace AutoPolarAlign
             SendCommand(":X0C500001#");
         }
 
-        private void SendPositionAzimuth(double pos)
+        private double SendPositionAzimuth(double pos)
         {
-            if ((int)Math.Ceiling(Math.Abs(pos) * Aux1Steps) > 99999)
+            double steps = pos * Aux1Steps;
+
+            if (Math.Abs(steps) > 99998)
             {
-                throw new Exception("Position too large");
+                steps = Math.Sign(steps) * 99998;
+                pos -= steps / Aux1Steps;
+            }
+            else
+            {
+                pos = 0;
             }
 
             if (ReverseAzimuth)
             {
-                pos = -pos;
+                steps = -steps;
             }
 
-            if (pos > 0)
+            if (steps > 0)
             {
-                SendCommand(string.Format(CultureInfo.InvariantCulture, ":X165{0:D5}#", (int)Math.Ceiling(pos * Aux1Steps)));
+                SendCommand(string.Format(CultureInfo.InvariantCulture, ":X165{0:D5}#", (int)Math.Ceiling(steps)));
             }
             else
             {
-                SendCommand(string.Format(CultureInfo.InvariantCulture, ":X164{0:D5}#", (int)Math.Floor(100000 + pos * Aux1Steps)));
+                SendCommand(string.Format(CultureInfo.InvariantCulture, ":X164{0:D5}#", (int)Math.Floor(100000 + steps)));
             }
+
+            return pos;
         }
 
         public void MoveAzimuth(double amount)
         {
-            SendSyncAzimuth();
-            if (SetAuxSpeed)
+            while (Math.Abs(amount) > double.Epsilon)
             {
-                SendSetSpeedAzimuth(Aux1Speed);
+                SendSyncAzimuth();
+
+                if (SetAuxSpeed)
+                {
+                    SendSetSpeedAzimuth(Aux1Speed);
+                }
+
+                double startAmount = amount;
+
+                amount = SendPositionAzimuth(amount);
+
+                double moveAmount = amount - startAmount;
+
+                Thread.Sleep(TimeSpan.FromSeconds(EstimateDurationForMove(moveAmount, Aux1Steps, Aux1Speed)));
+
+                StopAzimuth();
             }
-            SendPositionAzimuth(amount);
-            Thread.Sleep(TimeSpan.FromSeconds(EstimateDurationForMove(amount, Aux1Steps, Aux1Speed)));
-            StopAzimuth();
         }
 
         public void StopAzimuth()

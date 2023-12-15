@@ -107,6 +107,8 @@ namespace AutoPolarAlign
 
                 var correction = EstimateCorrection();
 
+                Console.WriteLine("Distance: " + correction.Length);
+
                 if (i > 0)
                 {
                     // If new correction is in opposite direction then it overshot
@@ -115,12 +117,20 @@ namespace AutoPolarAlign
 
                     if (settings.AltitudeBacklashCalibration && Math.Sign(previousCorrection.Altitude) != Math.Sign(correction.Altitude))
                     {
-                        Altitude.BacklashCompensation = Math.Max(0, Altitude.BacklashCompensation - Math.Abs(correction.Altitude));
+                        double prev = Altitude.BacklashCompensation;
+
+                        Altitude.BacklashCompensation = Math.Max(0, Altitude.BacklashCompensation - Math.Abs(correction.Altitude) * 2);
+
+                        Console.WriteLine("Adjusted altitude backlash: " + Altitude.BacklashCompensation + " (" + (Altitude.BacklashCompensation - prev).ToString("+0.###;-0.###") + ")");
                     }
 
                     if (settings.AzimuthBacklashCalibration && Math.Sign(previousCorrection.Azimuth) != Math.Sign(correction.Azimuth))
                     {
-                        Azimuth.BacklashCompensation = Math.Max(0, Azimuth.BacklashCompensation - Math.Abs(correction.Azimuth));
+                        double prev = Azimuth.BacklashCompensation;
+
+                        Azimuth.BacklashCompensation = Math.Max(0, Azimuth.BacklashCompensation - Math.Abs(correction.Azimuth) * 2);
+
+                        Console.WriteLine("Adjusted azimuth backlash: " + Azimuth.BacklashCompensation + " (" + (Azimuth.BacklashCompensation - prev).ToString("+0.###;-0.###") + ")");
                     }
                 }
 
@@ -202,7 +212,7 @@ namespace AutoPolarAlign
             double calibrationDir = reverse ? -1 : 1;
             double calibrationDistance = axis.CalibrationDistance;
 
-            Console.WriteLine("Clearing backlash (" + (axis.BacklashCompensation * calibrationDir).ToString("+#.###;-#.###") + ")");
+            Console.WriteLine("Clearing backlash (" + (axis.BacklashCompensation * calibrationDir).ToString("+0.###;-0.###") + ")");
 
             // Remove any backlash before calibration
             MoveAxisWithoutCompensation(axis, axis.BacklashCompensation * calibrationDir);
@@ -214,7 +224,7 @@ namespace AutoPolarAlign
             Vec2 endOffset;
             double dst;
 
-            Console.WriteLine("Calibrating axis (" + (calibrationDistance * calibrationDir).ToString("+#.###;-#.###") + ")");
+            Console.WriteLine("Calibrating axis (" + (calibrationDistance * calibrationDir).ToString("+0.###;-0.###") + ")");
 
             if (settings.SamplesPerCalibration > 1)
             {
@@ -295,14 +305,14 @@ namespace AutoPolarAlign
                     // the end.
                     if (Math.Sign(distanceToMargin) == Math.Sign(compensatedMargin) && Math.Sign(distanceToMargin) == Math.Sign(calibrationDir) && Math.Abs(axis.Position + distanceToMargin) < axis.Limit * 0.99)
                     {
-                        Console.WriteLine("Positioning to " + (axis.Position + distanceToMargin) + " (" + distanceToMargin.ToString("+#.###;-#.###") + ")");
+                        Console.WriteLine("Positioning to " + (axis.Position + distanceToMargin) + " (" + distanceToMargin.ToString("+0.###;-0.###") + ")");
 
                         MoveAxisWithoutCompensation(axis, distanceToMargin);
                         endOffset = MeasureCurrentOffset();
                     }
                 }
 
-                Console.WriteLine("Calibrating backlash (" + (-expectedMoveDistance * calibrationDir).ToString("+#.###;-#.###") + ")");
+                Console.WriteLine("Calibrating backlash (" + (-expectedMoveDistance * calibrationDir).ToString("+0.###;-0.###") + ")");
 
                 // Move back to start position of calibration
                 MoveAxisWithoutCompensation(axis, -expectedMoveDistance * calibrationDir);
@@ -317,7 +327,10 @@ namespace AutoPolarAlign
                     return false;
                 }
 
-                axis.BacklashCompensation = (expectedMoveDistance - actualMoveDistance) * 0.99;
+                axis.BacklashCompensation = (expectedMoveDistance - actualMoveDistance) * 0.95;
+
+                // Clear backlash in case backlash compensation has increased
+                axis.ClearBacklash(Math.Sign(-expectedMoveDistance * calibrationDir));
 
                 Console.WriteLine("Backlash: " + axis.BacklashCompensation);
             }
@@ -415,7 +428,7 @@ namespace AutoPolarAlign
 
                 double distanceToMargin = margin * 1.1 - axisOffset;
 
-                Console.WriteLine("Positioning to " + (axis.Position + distanceToMargin) + " (" + distanceToMargin.ToString("+#.###;-#.###") + ")");
+                Console.WriteLine("Positioning to " + (axis.Position + distanceToMargin) + " (" + distanceToMargin.ToString("+0.###;-0.###") + ")");
 
                 MoveAxisWithCompensation(axis, distanceToMargin);
             }
@@ -447,7 +460,11 @@ namespace AutoPolarAlign
                 return;
             }
 
-            if (axis.Move(axis.EstimateCompensatedMove(amount, backlashCompensationPercent), out amount))
+            double compensatedAmount = axis.EstimateCompensatedMove(amount, backlashCompensationPercent);
+
+            Console.WriteLine("Move " + axis.Name + " (" + compensatedAmount.ToString("+0.###;-0.###") + " BL: " + Math.Abs(compensatedAmount - amount).ToString("0.###") + ")");
+
+            if (axis.Move(compensatedAmount, out amount))
             {
                 if (axis == Altitude)
                 {
@@ -481,6 +498,11 @@ namespace AutoPolarAlign
         {
             MoveAxisWithCompensation(Altitude, correction.Altitude * aggressiveness, backlashCompensationPercent);
             MoveAxisWithCompensation(Azimuth, correction.Azimuth * aggressiveness, backlashCompensationPercent);
+
+            if (settings.SettlingSeconds > 0)
+            {
+                Thread.Sleep(settings.SettlingSeconds * 1000);
+            }
         }
     }
 }

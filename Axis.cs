@@ -54,6 +54,18 @@ namespace AutoPolarAlign
             LastDirection = 0;
         }
 
+        public void ClearBacklash(int direction)
+        {
+            if (direction > 0)
+            {
+                EstimatedBacklash = BacklashCompensation * 0.5;
+            }
+            else if (direction < 0)
+            {
+                EstimatedBacklash = -BacklashCompensation * 0.5;
+            }
+        }
+
         public double EstimateCompensatedMove(double amount, double backlashCompensationPercent = 1.0)
         {
             if (Math.Sign(amount) != Math.Sign(EstimatedBacklash))
@@ -114,11 +126,11 @@ namespace AutoPolarAlign
         {
             if (EstimatedBacklash > BacklashCompensation * 0.5)
             {
-                EstimatedBacklash = BacklashCompensation * 0.5;
+                ClearBacklash(1);
             }
             else if (EstimatedBacklash < -BacklashCompensation * 0.5)
             {
-                EstimatedBacklash = -BacklashCompensation * 0.5;
+                ClearBacklash(-1);
             }
         }
     }
