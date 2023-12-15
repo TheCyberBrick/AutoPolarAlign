@@ -10,6 +10,7 @@
         public bool AltitudeBacklashCalibration = false;
         public double AzimuthLimit = 300;
         public double AltitudeLimit = 300;
+        public bool ResistDirectionChange = true;
         public bool StartAtLowAltitude = true;
         public int SamplesPerCalibration = 1;
         public int SamplesPerMeasurement = 6;

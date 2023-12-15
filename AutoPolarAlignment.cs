@@ -10,6 +10,7 @@ namespace AutoPolarAlign
         private readonly IPolarAlignmentSolver solver;
 
         public Axis Altitude { get; } = new Axis();
+
         public Axis Azimuth { get; } = new Axis();
 
         protected readonly Settings settings;
@@ -103,6 +104,28 @@ namespace AutoPolarAlign
                 }
 
                 previousCorrection = correction;
+
+                if (settings.ResistDirectionChange)
+                {
+                    double resistThreshold = Math.Sqrt(0.5 * settings.AlignmentThreshold * settings.AlignmentThreshold);
+
+                    bool resistAltitudeChange = Altitude.LastDirection != 0 && Math.Sign(correction.Altitude) != Altitude.LastDirection && Math.Abs(correction.Altitude) < resistThreshold;
+                    bool resistAzimuthChange = Azimuth.LastDirection != 0 && Math.Sign(correction.Azimuth) != Azimuth.LastDirection && Math.Abs(correction.Azimuth) < resistThreshold;
+
+                    if (resistAltitudeChange && resistAzimuthChange)
+                    {
+                        // Already below threshold, avoid correction altogether
+                        return true;
+                    }
+                    else if (resistAltitudeChange)
+                    {
+                        correction.Altitude = 0;
+                    }
+                    else if (resistAzimuthChange)
+                    {
+                        correction.Azimuth = 0;
+                    }
+                }
 
                 Move(correction, aggressiveness: aggressiveness);
 
@@ -377,6 +400,11 @@ namespace AutoPolarAlign
 
         protected void MoveAxisWithCompensation(Axis axis, double amount, double backlashCompensationPercent = 1.0)
         {
+            if (Math.Abs(amount) <= double.Epsilon)
+            {
+                return;
+            }
+
             if (axis.Move(axis.EstimateCompensatedMove(amount, backlashCompensationPercent), out amount))
             {
                 if (axis == Altitude)

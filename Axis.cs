@@ -10,8 +10,10 @@ namespace AutoPolarAlign
             get => _position;
             set
             {
-                MoveBacklash(value - _position);
+                var offset = value - _position;
+                MoveBacklash(offset);
                 _position = value;
+                LastDirection = Math.Sign(offset);
             }
         }
 
@@ -36,10 +38,13 @@ namespace AutoPolarAlign
 
         public double EstimatedBacklash { get; private set; }
 
+        public int LastDirection { get; private set; }
+
         public void Reset(double position = 0.0f)
         {
             Position = position;
             EstimatedBacklash = 0.0f;
+            LastDirection = 0;
         }
 
         public double EstimateCompensatedMove(double amount, double backlashCompensationPercent = 1.0)

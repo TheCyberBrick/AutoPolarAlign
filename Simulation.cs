@@ -68,7 +68,10 @@ namespace AutoPolarAlign
 
             private void LogProgress()
             {
-                var trueOffsetInAltAz = AlignmentOffsetToAltAzOffset(simulator.TrueAlignmentOffset);
+                var trueOffsetInAltAz = new Vec2(
+                    simulator.TrueAzAxis.Normalized().Dot(simulator.TrueAlignmentOffset) * (1 / simulator.TrueAzAxis.Length),
+                    simulator.TrueAltAxis.Normalized().Dot(simulator.TrueAlignmentOffset) * (1 / simulator.TrueAltAxis.Length)
+                    );
                 Console.WriteLine(string.Format("│ {0,11:#######0.00} │ {1,11:#######0.00} │ {2,11:#######0.00} │ {3,11:#######0.00} │", simulator.TrueAlignmentOffset.X, simulator.TrueAlignmentOffset.Y, trueOffsetInAltAz.Azimuth, trueOffsetInAltAz.Altitude));
             }
         }
@@ -99,7 +102,7 @@ namespace AutoPolarAlign
                 float startAggressiveness = 0.95f;
                 float endAggressiveness = 0.25f;
 
-                float alignmentThreshold = 1.0f;
+                float alignmentThreshold = 0.4f;
 
                 float randomnessScale = 5.0f;
                 float offsetJitter = 1.0f;
