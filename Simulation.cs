@@ -43,7 +43,7 @@ namespace AutoPolarAlign
 
                 base.Move(correction, aggressiveness, backlashCompensationPercent * CompensationScale);
 
-                bool isDone = correction.Length < settings.AlignmentThreshold;
+                bool isDone = correction.Length < settings.TargetAlignment;
 
                 if (logProgress)
                 {
@@ -141,7 +141,7 @@ namespace AutoPolarAlign
                     AzimuthBacklashCalibration = backlashCalibration,
                     StartAggressiveness = startAggressiveness,
                     EndAggressiveness = endAggressiveness,
-                    AlignmentThreshold = alignmentThreshold,
+                    TargetAlignment = alignmentThreshold,
                     StartAtLowAltitude = true,
                     WaitSecondsBetweenSolving = 0,
                     SettlingSeconds = 0,

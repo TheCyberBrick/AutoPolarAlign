@@ -16,13 +16,14 @@
         public int SamplesPerMeasurement = 6;
         public int MaxAlignmentIterations = 32;
         public int MaxPositioningAttempts = 3;
-        public double AlignmentThreshold = 0.5;
+        public double TargetAlignment = 0.5;
+        public double AcceptanceThreshold = 3;
         public bool AcceptBestEffort = false;
         public double StartAggressiveness = 0.95;
         public double EndAggressiveness = 0.5;
         public int WaitUntilConsecutiveSolving = 5;
-        public int WaitSecondsBetweenSolving = 1;
-        public int MaxWaitSeconds = 3600;
-        public int SettlingSeconds = 1;
+        public double WaitSecondsBetweenSolving = 1;
+        public double MaxWaitSeconds = 3600;
+        public double SettlingSeconds = 1;
     }
 }

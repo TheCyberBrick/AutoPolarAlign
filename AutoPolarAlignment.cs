@@ -33,7 +33,7 @@ namespace AutoPolarAlign
 
         public bool Run()
         {
-            if (!WaitUntilConsecutiveSolves())
+            if (!WaitUntilConsecutiveSolving())
             {
                 throw new Exception("Timed out waiting for successful plate solving");
             }
@@ -57,7 +57,7 @@ namespace AutoPolarAlign
             return success;
         }
 
-        protected bool WaitUntilConsecutiveSolves()
+        protected bool WaitUntilConsecutiveSolving()
         {
             if (settings.WaitUntilConsecutiveSolving <= 0)
             {
@@ -86,9 +86,9 @@ namespace AutoPolarAlign
                     consecutiveSolves = 0;
                 }
 
-                if (settings.WaitSecondsBetweenSolving > 0)
+                if (settings.WaitSecondsBetweenSolving > double.Epsilon)
                 {
-                    Thread.Sleep(settings.WaitSecondsBetweenSolving * 1000);
+                    Thread.Sleep((int)Math.Ceiling(settings.WaitSecondsBetweenSolving * 1000));
                 }
             }
 
@@ -99,6 +99,27 @@ namespace AutoPolarAlign
         {
             Console.WriteLine("Starting alignment...");
 
+            bool success = AlignToTarget();
+
+            if (settings.AcceptBestEffort)
+            {
+                success = true;
+            }
+
+            Vec2 correction = EstimateCorrection();
+
+            Console.WriteLine("Final distance: " + correction.Length);
+
+            if (!success)
+            {
+                success = correction.Length < settings.TargetAlignment * Math.Max(1, settings.AcceptanceThreshold);
+            }
+
+            return success;
+        }
+
+        protected bool AlignToTarget()
+        {
             Vec2 previousCorrection = new Vec2();
 
             for (int i = 0; i < settings.MaxAlignmentIterations; ++i)
@@ -138,7 +159,7 @@ namespace AutoPolarAlign
 
                 if (settings.ResistDirectionChange)
                 {
-                    double resistThreshold = Math.Sqrt(0.5 * settings.AlignmentThreshold * settings.AlignmentThreshold);
+                    double resistThreshold = Math.Sqrt(0.5 * settings.TargetAlignment * settings.TargetAlignment);
 
                     bool resistAltitudeChange = Altitude.LastDirection != 0 && Math.Sign(correction.Altitude) != Altitude.LastDirection && Math.Abs(correction.Altitude) < resistThreshold;
                     bool resistAzimuthChange = Azimuth.LastDirection != 0 && Math.Sign(correction.Azimuth) != Azimuth.LastDirection && Math.Abs(correction.Azimuth) < resistThreshold;
@@ -162,18 +183,13 @@ namespace AutoPolarAlign
 
                 Move(correction, aggressiveness: aggressiveness);
 
-                if (correction.Length < settings.AlignmentThreshold)
+                if (correction.Length < settings.TargetAlignment)
                 {
                     return true;
                 }
             }
 
-            if (settings.AcceptBestEffort)
-            {
-                return true;
-            }
-
-            return EstimateCorrection().Length < settings.AlignmentThreshold;
+            return false;
         }
 
         public bool Calibrate()
@@ -499,9 +515,9 @@ namespace AutoPolarAlign
             MoveAxisWithCompensation(Altitude, correction.Altitude * aggressiveness, backlashCompensationPercent);
             MoveAxisWithCompensation(Azimuth, correction.Azimuth * aggressiveness, backlashCompensationPercent);
 
-            if (settings.SettlingSeconds > 0)
+            if (settings.SettlingSeconds > double.Epsilon)
             {
-                Thread.Sleep(settings.SettlingSeconds * 1000);
+                Thread.Sleep((int)Math.Ceiling(settings.SettlingSeconds * 1000));
             }
         }
     }
