@@ -91,7 +91,7 @@ namespace AutoPolarAlign
                 Vec2 initialAlignmentOffset = new Vec2(42.0f, -87.0f);
 
                 Vec2 altAxis = new Vec2(1, 1);
-                Vec2 azAxis = new Vec2(-1, 1);
+                Vec2 azAxis = new Vec2(1, -1);
 
                 float altAxisScale = 3.0f;
                 float azAxisScale = 2.0f;

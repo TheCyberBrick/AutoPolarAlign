@@ -12,6 +12,7 @@
         public double AltitudeLimit = 600;
         public bool ResistDirectionChange = true;
         public bool StartAtLowAltitude = true;
+        public bool StartAtOppositeAzimuth = true;
         public int SamplesPerCalibration = 1;
         public int SamplesPerMeasurement = 6;
         public int MaxAlignmentIterations = 32;

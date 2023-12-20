@@ -14,6 +14,8 @@ namespace AutoPolarAlign
 
         public Axis Azimuth { get; } = new Axis("azimuth");
 
+        protected Vec2 lastMeasuredOffset;
+
         protected readonly Settings settings;
 
         public AutoPolarAlignment(IPolarAlignmentMount mount, IPolarAlignmentSolver solver, Settings settings)
@@ -140,7 +142,7 @@ namespace AutoPolarAlign
                     {
                         double prev = Altitude.BacklashCompensation;
 
-                        Altitude.BacklashCompensation = Math.Max(0, Altitude.BacklashCompensation - Math.Abs(correction.Altitude) * 2);
+                        Altitude.BacklashCompensation = Math.Max(0, Altitude.BacklashCompensation - Math.Abs(correction.Altitude));
 
                         Console.WriteLine("Adjusted altitude backlash: " + Altitude.BacklashCompensation + " (" + (Altitude.BacklashCompensation - prev).ToString("+0.###;-0.###") + ")");
                     }
@@ -149,7 +151,7 @@ namespace AutoPolarAlign
                     {
                         double prev = Azimuth.BacklashCompensation;
 
-                        Azimuth.BacklashCompensation = Math.Max(0, Azimuth.BacklashCompensation - Math.Abs(correction.Azimuth) * 2);
+                        Azimuth.BacklashCompensation = Math.Max(0, Azimuth.BacklashCompensation - Math.Abs(correction.Azimuth));
 
                         Console.WriteLine("Adjusted azimuth backlash: " + Azimuth.BacklashCompensation + " (" + (Azimuth.BacklashCompensation - prev).ToString("+0.###;-0.###") + ")");
                     }
@@ -200,12 +202,17 @@ namespace AutoPolarAlign
         private Vec2 MeasureCurrentOffset()
         {
             var offset = new Vec2();
+
             for (int i = 0; i < settings.SamplesPerMeasurement; ++i)
             {
                 solver.Solve();
                 offset += solver.AlignmentOffset;
             }
+
             offset /= settings.SamplesPerMeasurement;
+
+            lastMeasuredOffset = offset;
+
             return offset;
         }
 
@@ -213,12 +220,31 @@ namespace AutoPolarAlign
         {
             // Reverse altitude calibration dir to later help
             // StartAtLowAltitude if enabled
-            return CalibrateAxis(Altitude, settings.AltitudeBacklashCalibration, reverse: true, margin: settings.StartAtLowAltitude ? -Math.Max(Altitude.BacklashCompensation, settings.AltitudeBacklash) : 0);
+            return CalibrateAxis(Altitude, settings.AltitudeBacklashCalibration, reverse: true, margin: settings.StartAtLowAltitude ? -settings.AltitudeCalibrationDistance * 0.25 : 0);
         }
 
         private bool CalibrateAzimuth()
         {
-            return CalibrateAxis(Azimuth, settings.AzimuthBacklashCalibration);
+            double margin = 0;
+            bool reverse = false;
+
+            if (settings.StartAtOppositeAzimuth && Altitude.CalibratedMagnitude > double.Epsilon && Altitude.CalibratedDirection.Length > double.Epsilon && lastMeasuredOffset.Length > double.Epsilon)
+            {
+                // Calibrate azimuth axis towards pole such that the maximum distance
+                // from the pole during calibration is minimized.
+                // Assumes that azimuth axis is orthogonal to altitude axis and that
+                // positive azimuth points to the right when positive altitude points
+                // up.
+
+                var estimatedAzimuthDirection = new Vec2(Altitude.CalibratedDirection.Y, -Altitude.CalibratedDirection.X);
+
+                int estimatedAzimuthOffsetDir = Math.Sign(estimatedAzimuthDirection.Dot(lastMeasuredOffset));
+
+                reverse = estimatedAzimuthOffsetDir > 0;
+                margin = -estimatedAzimuthOffsetDir * settings.AzimuthCalibrationDistance * 0.25;
+            }
+
+            return CalibrateAxis(Azimuth, settings.AzimuthBacklashCalibration, reverse: reverse, margin: margin);
         }
 
         private bool CalibrateAxis(Axis axis, bool calibrateBacklash, bool reverse = false, double margin = 0)
