@@ -1,19 +1,41 @@
 using AutoPolarAlign;
+using CommandLine;
 using System;
+using System.IO;
 
 class MountInitializer
 {
-    public static void Main(string[] args)
+    public static int Main(string[] args)
     {
-        var settings = new Settings();
-        AutoPolarAlign(settings);
+        return Parser.Default.ParseArguments<Settings>(args).MapResult(opts => Run(opts), errs => 3);
     }
 
-    private static void AutoPolarAlign(Settings settings)
+    private static int Run(Settings settings)
+    {
+        try
+        {
+            if (!AutoPolarAlign(settings))
+            {
+                return 1;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Aborting due to an error: " + ex.Message);
+            Console.WriteLine(ex.ToString());
+            return 2;
+        }
+        return 0;
+    }
+
+    private static bool AutoPolarAlign(Settings settings)
     {
         using (var mount = new StarGoMount())
         using (var solver = new OptronIPolarSolver())
         {
+            mount.ReverseAltitude = settings.ReverseAltitude;
+            mount.ReverseAzimuth = settings.ReverseAzimuth;
+
             Console.WriteLine("Connecting to mount...");
 
             try
@@ -22,7 +44,7 @@ class MountInitializer
             }
             catch (Exception ex)
             {
-                throw new Exception("Failed to connect to mount", ex);
+                throw new Exception("Failed connecting to mount", ex);
             }
 
             Console.WriteLine("Connecting to plate solver...");
@@ -33,12 +55,12 @@ class MountInitializer
             }
             catch (Exception ex)
             {
-                throw new Exception("Failed to connect to solver", ex);
+                throw new Exception("Failed connecting to solver", ex);
             }
 
             var alignment = new AutoPolarAlignment(mount, solver, settings);
-            alignment.Run();
-        }
 
+            return alignment.Run();
+        }
     }
 }

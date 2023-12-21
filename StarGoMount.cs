@@ -17,7 +17,7 @@ namespace AutoPolarAlign
 
         public bool SetAuxSpeed { get; set; } = true;
 
-        public bool ReverseAltitude { get; set; } = true;
+        public bool ReverseAltitude { get; set; } = false;
 
         public bool ReverseAzimuth { get; set; } = false;
 
@@ -45,12 +45,15 @@ namespace AutoPolarAlign
 
         public void Disconnect()
         {
-            telescope.Connected = false;
+            if (telescope != null)
+            {
+                telescope.Connected = false;
+            }
         }
 
         public void Dispose()
         {
-            telescope.Dispose();
+            telescope?.Dispose();
         }
 
         private double EstimateDurationForMove(double amount, int auxsteps, int auxspeed)
